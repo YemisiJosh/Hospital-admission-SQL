@@ -1,0 +1,155 @@
+--How many unique patients were admitted?
+SELECT 
+	COUNT(DISTINCT subject_id) AS unique_patients
+	FROM
+	main.admissions;
+
+--What is the total number of admissions?
+select 
+count(distinct hadm_id) 
+from main.admissions;
+
+--How many patients are admitted each year?
+
+select
+	extract('year' from admittime) as admit_year,
+	count(hadm_id) as n_admssions
+from
+	main.admissions
+group by
+	admit_year
+order by
+	admit_year
+	
+--What is the breakdown of admissions by day (comparing weekdays to weekends) for each year?
+
+SELECT 
+	COUNT(hadm_id),
+	dayname(admittime) as week_day,
+	EXTRACT ('year' FROM admittime) as admit_year
+From main.admissions 
+	group by week_day, admit_year
+	ORDER by admit_year,week_day;
+
+5.	What is the average hospital length of stay?
+
+--Provide a breakdown of admissions by type and source of admission.
+--From where are patients typically admitted?
+
+SELECT 
+	admission_type,
+	admission_location,
+	discharge_location,
+	COUNT(hadm_id) as subject_count
+From main.admissions 
+Group by admission_type, admission_location, discharge_location 
+order by admission_type, admission_location, discharge_location;
+
+--Where are patients discharged to?
+SELECT 
+	DISTINCT subject_id,
+	discharge_location
+From
+	main.admissions
+Order by
+	subject_id;
+
+
+--What are the types and percentages of insurers covering the patients?
+select
+	insurance,
+	count(hadm_id) as n_admissions,
+	(select count(hadm_id) from main.admissions)  as n_total_admissions,
+	n_admissions / n_total_admissions * 100 as perc_insured
+from
+	main.admissions
+group by
+	insurance,
+	n_total_admissions
+
+	
+--What percentage of patients are admitted from the Emergency Department (ED)?
+
+select
+	count(hadm_id) as emergent_admissions,
+	(select count(hadm_id) from main.admissions)  as n_total_admissions,
+	round(emergent_admissions/ n_total_admissions * 100,2) as perc_emergent
+from
+	main.admissions
+where
+	upper(admission_location)  = ('EMERGENCY ROOM ADMIT')
+group by
+	n_total_admissions;
+
+--What is the average length of time patients spend in the ED?
+select
+	avg(date_diff('hour', edregtime, edouttime)) as avg_ed_los
+from
+	main.admissions
+where
+	upper(admission_location)  = ('EMERGENCY ROOM ADMIT')
+
+--How many patients passed away during their hospital stay?
+select
+	count(hadm_id)
+from
+	main.admissions 
+where
+	hospital_expire_flag  = 1
+
+
+select
+	count(hadm_id)
+from
+	main.admissions 
+where
+	deathtime is not null 
+
+--How many admissions had a hospital length of stay greater than the average?
+	
+select
+	count(hadm_id)
+from
+	main.admissions 
+where
+	--length of stay
+	date_diff('day', admittime,dischtime) > (
+		--avg length of stay
+		select
+			avg(date_diff('day', admittime,dischtime)) as avg_los_days
+		from
+			main.admissions)
+
+
+--How many patients were admitted for a duration longer than the average length of stay for each admission type?
+with avg_los_table as (
+	select
+		admission_type,
+		avg(date_diff('day', admittime,dischtime)) as avg_los
+	from
+		main.admissions
+	group by
+		admission_type
+),
+pat_los as (
+
+	select
+		hadm_id,
+		admission_type,
+		date_diff('day', admittime,dischtime) as los
+	from
+		main.admissions 
+)
+select
+	pat_los.admission_type,
+	count(distinct pat_los.hadm_id) as n_admit_gt_avg_los
+from
+	pat_los
+	inner join avg_los_table
+		on pat_los.admission_type = avg_los_table.admission_type
+where
+	pat_los.los > avg_los_table.avg_los
+group by
+	pat_los.admission_type;	
+
+
